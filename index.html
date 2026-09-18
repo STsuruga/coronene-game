@@ -47,6 +47,15 @@
   button.sub:active { box-shadow: 0 1px 0 #8b73d0; }
   button:disabled { opacity: .45; cursor: default; }
   .modeRow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .diffRow { display: flex; justify-content: center; margin-bottom: 6px; }
+  .diffRow button { background: #fff; color: var(--ink); box-shadow: none; border: 2px solid var(--line); font-size: 15px; padding: 8px 20px; border-radius: 0; }
+  .diffRow button:first-child { border-radius: 999px 0 0 999px; }
+  .diffRow button:last-child { border-radius: 0 999px 999px 0; }
+  .diffRow button:active { transform: none; }
+  .diffRow button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .diffRow button.on.hard { background: #7a5cd6; border-color: #7a5cd6; }
+  .diffNote { font-size: 12px; color: var(--sub); font-weight: 800; margin-bottom: 14px; }
+  .modeLabel.hard { background: #7a5cd6; }
   button.daily { background: #6cc6a0; box-shadow: 0 5px 0 #3fa07a; font-size: 18px; padding: 12px 22px; }
   button.daily:active { box-shadow: 0 1px 0 #3fa07a; }
   .modeLabel { display: inline-block; font-size: 12px; font-weight: 800; color: #fff; background: #b9a4f0; border-radius: 999px; padding: 2px 10px; margin-bottom: 8px; }
@@ -147,11 +156,16 @@
       直鎖の <b>アセン系</b> か <b>フェナレン系</b> に分かれるよ！<br>
       続けて合体すると <b>連鎖ボーナス</b>✨<br>
       🔦 <b>ブラックライト</b>中は光る分子の得点が2倍！<br>
-      つまったら <b>ゆらす</b>（1ゲーム3回・Sキー）<br>
+      つまったら <b>ゆらす</b>（ふつうのみ・1ゲーム3回・Sキー）<br>
       <span style="color:var(--sub)">クリック / タップ で落とす ・ ←→ + スペースでもOK</span>
     </div>
+    <div class="diffRow">
+      <button id="diffNormal">ふつう</button>
+      <button id="diffHard" class="hard">むずかしい</button>
+    </div>
+    <div class="diffNote" id="diffNote"></div>
     <div class="modeRow">
-      <button id="startBtn">ふつうモード</button>
+      <button id="startBtn">スタート！</button>
       <button class="daily" id="dailyBtn">📅 デイリー <span id="dailyDate"></span></button>
     </div>
     <div class="bestLine">ベスト：<span id="titleBest">0</span> ・ 今日のデイリー：<span id="titleDaily">-</span></div>
@@ -676,16 +690,21 @@ document.addEventListener('visibilitychange', () => {
 // ============================================================
 // ベストスコア（ローカル保存）
 // ============================================================
-function loadBest() { try { return +localStorage.getItem('coroneneBest') || 0; } catch (e) { return 0; } }
-function saveBest(v) { try { localStorage.setItem('coroneneBest', String(v)); } catch (e) {} }
+// 難易度：ふつう（ゆらすあり）／むずかしい（ゆらすなし）。記録は難易度ごとに別々
+let diff = 'normal';
+try { if (localStorage.getItem('coroneneDiff') === 'hard') diff = 'hard'; } catch (e) {}
+const DIFF_NAME = { normal: 'ふつう', hard: 'むずかしい' };
+function sfxKey() { return diff === 'hard' ? '-hard' : ''; }
+function loadBest() { try { return +localStorage.getItem('coroneneBest' + sfxKey()) || 0; } catch (e) { return 0; } }
+function saveBest(v) { try { localStorage.setItem('coroneneBest' + sfxKey(), String(v)); } catch (e) {} }
 let best = loadBest();
 function todayJST() {
   const d = new Date(Date.now() + 9 * 3600e3);
   const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, day = d.getUTCDate();
   return { key: `${y}${String(m).padStart(2, '0')}${String(day).padStart(2, '0')}`, label: `${m}/${day}` };
 }
-function loadDaily(key) { try { return +localStorage.getItem('coroneneDaily-' + key) || 0; } catch (e) { return 0; } }
-function saveDaily(key, v) { try { localStorage.setItem('coroneneDaily-' + key, String(v)); } catch (e) {} }
+function loadDaily(key) { try { return +localStorage.getItem('coroneneDaily' + sfxKey() + '-' + key) || 0; } catch (e) { return 0; } }
+function saveDaily(key, v) { try { localStorage.setItem('coroneneDaily' + sfxKey() + '-' + key, String(v)); } catch (e) {} }
 let mode = 'normal', daily = todayJST(), dailyBest = loadDaily(daily.key);
 function curBest() { return mode === 'daily' ? dailyBest : best; }
 
@@ -796,7 +815,7 @@ function resetGame() {
   discovered = new Set([current, next]);
   topKind = [current, next].sort((a, b) => KINDS[b].tier - KINDS[a].tier)[0];
   combo = 0; maxCombo = 0; lastMergeAt = -1e9;
-  shakesLeft = SHAKES; shakeAt = -1e9; graceUntil = 0;
+  shakesLeft = diff === 'hard' ? 0 : SHAKES; shakeAt = -1e9; graceUntil = 0;
   blStart = blEnd = -1e9; blWasOn = false;
   nextBL = 35000 + rngEvent() * 20000;
   updateShakeBtn();
@@ -1015,7 +1034,8 @@ addEventListener('keyup', e => { keys[e.key] = false; });
 // ---------------- SNS 共有 ----------------
 function pageUrl() { return /^https?:/.test(location.protocol) ? location.href.split('#')[0] : ''; }
 function shareText() {
-  const head = mode === 'daily' ? `🧪コロネンゲーム デイリー${daily.label} で ${score}点！` : `🧪コロネンゲームで ${score}点！`;
+  const tag = `【${DIFF_NAME[diff]}${mode === 'daily' ? '・デイリー' + daily.label : ''}】`;
+  const head = `🧪コロネンゲーム${tag}で ${score}点！`;
   return `${head}\n最高到達：${KINDS[topKind].name}／最大${maxCombo}連鎖\n#コロネンゲーム`;
 }
 function openShare(url) { window.open(url, '_blank', 'noopener,noreferrer'); }
@@ -1049,7 +1069,7 @@ function resultImage() {
     roundRect(g, 20, 14, W - 40, 88, 20); g.fill();
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = '#e0648c'; g.font = `800 22px ${FONT}`;
-    g.fillText(`コロネンゲーム${mode === 'daily' ? ' デイリー' + daily.label : ''}  ${score}点`, W / 2, 44);
+    g.fillText(`コロネンゲーム【${DIFF_NAME[diff]}${mode === 'daily' ? '・デイリー' + daily.label : ''}】 ${score}点`, W / 2, 44);
     g.fillStyle = '#5a3d4a'; g.font = `800 15px ${FONT}`;
     g.fillText(`最高到達：${KINDS[topKind].name} ・ 最大${maxCombo}連鎖`, W / 2, 76);
     c.toBlob(b => resolve(b), 'image/png');
@@ -1083,8 +1103,10 @@ function startGame(m) {
   $('overOverlay').classList.remove('show');
   resetGame();
   state = 'play';
-  $('modeLabel').textContent = mode === 'daily' ? `📅 デイリー ${daily.label}` : 'ふつうモード';
-  $('modeLabel').classList.toggle('daily', mode === 'daily');
+  $('modeLabel').textContent = DIFF_NAME[diff] + (mode === 'daily' ? ` ・ 📅 デイリー ${daily.label}` : '');
+  $('modeLabel').classList.toggle('daily', mode === 'daily' && diff !== 'hard');
+  $('modeLabel').classList.toggle('hard', diff === 'hard');
+  $('shakeBtn').hidden = diff === 'hard';
   $('bestLabel').textContent = mode === 'daily' ? '今日のベスト' : 'ベスト';
   updateScore(false);
   show('game');
@@ -1092,7 +1114,10 @@ function startGame(m) {
   bgmStart();
 }
 function updateTitleInfo() {
-  daily = todayJST(); dailyBest = loadDaily(daily.key);
+  daily = todayJST(); dailyBest = loadDaily(daily.key); best = loadBest();
+  $('diffNormal').classList.toggle('on', diff === 'normal');
+  $('diffHard').classList.toggle('on', diff === 'hard');
+  $('diffNote').textContent = diff === 'hard' ? 'ゆらす なし・記録は別集計' : 'ゆらす 3回つき';
   $('titleBest').textContent = best;
   $('titleDaily').textContent = dailyBest || '-';
   $('dailyDate').textContent = daily.label;
@@ -1108,6 +1133,13 @@ function updateSoundBtns() {
   $('muteBtn').textContent = muted ? '🔇 おと' : '🔊 おと';
   $('bgmBtn').textContent = bgm.on ? '🎵 BGM' : '🔕 BGM';
 }
+function setDiff(d) {
+  diff = d;
+  try { localStorage.setItem('coroneneDiff', d); } catch (e) {}
+  updateTitleInfo();
+}
+$('diffNormal').onclick = () => setDiff('normal');
+$('diffHard').onclick = () => setDiff('hard');
 $('startBtn').onclick = () => startGame('normal');
 $('dailyBtn').onclick = () => startGame('daily');
 $('retryBtn').onclick = () => startGame(mode);
