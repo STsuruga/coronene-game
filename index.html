@@ -562,17 +562,27 @@ const sfx = {
 };
 
 // ---------------- BGM（その場で合成するかわいいループ） ----------------
-const BGM_EIGHTH = 60 / 112 / 2;
-const MEL = [
-  76, null, 79, null, 81, 79, 76, null,   72, null, 74, 76, null, 74, 72, null,
-  77, null, 76, 77, 81, null, 79, null,   79, null, 76, 74, null, null, 71, 74,
-  76, null, 79, null, 84, null, 83, 81,   79, null, 76, null, 81, 79, 76, null,
-  74, 76, 77, null, 81, null, 79, 77,     76, null, 74, null, 72, null, null, null,
+// コロブチカ（ロシア民謡）をポルカ風にアレンジ。8分音符単位：数値=音の開始(MIDI) / 0=のばす / -1=休み
+const BGM_EIGHTH = 60 / 132 / 2;
+const MEL_A = [
+  76, 0, 71, 72, 74, 0, 72, 71,   69, 0, 69, 72, 76, 0, 74, 72,
+  71, 0, 0, 72, 74, 0, 76, 0,     72, 0, 69, 0, 69, 0, -1, -1,
+  -1, 74, 0, 77, 81, 0, 79, 77,   76, 0, 0, 72, 76, 0, 74, 72,
+  71, 0, 71, 72, 74, 0, 76, 0,    72, 0, 69, 0, 69, 0, -1, -1,
 ];
-const CHORDS = [  // [ベース, 和音]  C - Am - F - G - C - Am - Dm - G
-  [48, [60, 64, 67]], [45, [57, 60, 64]], [41, [57, 60, 65]], [43, [55, 59, 62]],
-  [48, [60, 64, 67]], [45, [57, 60, 64]], [50, [57, 62, 65]], [43, [55, 59, 62]],
+const MEL_B = [
+  76, 0, 0, 0, 72, 0, 0, 0,       74, 0, 0, 0, 71, 0, 0, 0,
+  72, 0, 0, 0, 69, 0, 0, 0,       68, 0, 0, 0, 71, 0, -1, -1,
+  76, 0, 0, 0, 72, 0, 0, 0,       74, 0, 0, 0, 71, 0, 0, 0,
+  72, 0, 76, 0, 81, 0, 0, 0,      80, 0, 0, 0, 0, 0, 0, -1,
 ];
+const MEL = [...MEL_A, ...MEL_A, ...MEL_B];
+const CH = {  // [ベース, 和音]
+  E: [40, [64, 68, 71]], Am: [45, [57, 60, 64]], Dm: [38, [62, 65, 69]], C: [48, [60, 64, 67]],
+};
+const PROG_A = ['E', 'Am', 'E', 'Am', 'Dm', 'C', 'E', 'Am'];
+const PROG_B = ['Am', 'E', 'Am', 'E', 'Am', 'E', 'Am', 'E'];
+const CHORDS = [...PROG_A, ...PROG_A, ...PROG_B].map(k => CH[k]);
 const midi = m => 440 * Math.pow(2, (m - 69) / 12);
 const bgm = { on: loadPref('coroneneBGM', true), timer: null, gain: null, filter: null, next: 0, step: 0 };
 let noiseBuf = null;
@@ -601,16 +611,25 @@ function bgmHat(t) {
 }
 function bgmStep(i, t) {
   const pos = i % 8, [root, ch] = CHORDS[Math.floor(i / 8)];
+  const e = bgmEighth();
   const m = MEL[i];
-  if (m) { bgmNote(midi(m), t, BGM_EIGHTH * 1.6, 'triangle', 0.11); bgmNote(midi(m + 12), t, BGM_EIGHTH * 1.2, 'sine', 0.025); }
-  if (pos % 4 === 0) bgmNote(midi(root), t, BGM_EIGHTH * 1.8, 'triangle', 0.13);
-  if (pos % 4 === 2) bgmNote(midi(root + 12), t, BGM_EIGHTH * 1.2, 'triangle', 0.07);
-  if (pos % 2 === 1) { bgmNote(midi(ch[(pos >> 1) % 3]), t, BGM_EIGHTH * 0.9, 'sine', 0.035); bgmHat(t); }
+  if (m > 0) {
+    let len = 1;
+    while (MEL[(i + len) % MEL.length] === 0) len++;
+    bgmNote(midi(m), t, e * len * 0.92, 'triangle', 0.11);
+    bgmNote(midi(m + 12), t, e * Math.min(len, 2) * 0.7, 'sine', 0.025);
+  }
+  // ポルカのリズム：1・3拍目にベース、2・4拍目に和音
+  if (pos % 4 === 0) bgmNote(midi(root), t, e * 1.6, 'triangle', 0.14);
+  if (pos % 4 === 2) for (const n of ch) bgmNote(midi(n), t, e * 0.8, 'sine', 0.03);
+  if (pos % 2 === 1) bgmHat(t);
 }
+// 危険ラインに近づくとテンポアップ
+function bgmEighth() { return BGM_EIGHTH / (state === 'play' && warn ? 1.25 : 1); }
 function bgmSchedule() {
   while (bgm.next < actx.currentTime + 0.2) {
     bgmStep(bgm.step, bgm.next);
-    bgm.next += BGM_EIGHTH;
+    bgm.next += bgmEighth();
     bgm.step = (bgm.step + 1) % MEL.length;
   }
 }
