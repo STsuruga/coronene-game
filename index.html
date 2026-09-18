@@ -45,6 +45,13 @@
   button:active { transform: translateY(4px); box-shadow: 0 1px 0 var(--accent-dark); }
   button.sub { background: #b9a4f0; box-shadow: 0 5px 0 #8b73d0; font-size: 15px; padding: 9px 20px; }
   button.sub:active { box-shadow: 0 1px 0 #8b73d0; }
+  button:disabled { opacity: .45; cursor: default; }
+  .modeRow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  button.daily { background: #6cc6a0; box-shadow: 0 5px 0 #3fa07a; font-size: 18px; padding: 12px 22px; }
+  button.daily:active { box-shadow: 0 1px 0 #3fa07a; }
+  .modeLabel { display: inline-block; font-size: 12px; font-weight: 800; color: #fff; background: #b9a4f0; border-radius: 999px; padding: 2px 10px; margin-bottom: 8px; }
+  .modeLabel.daily { background: #6cc6a0; }
+  #shakeBtn { width: 100%; margin-top: 12px; }
   button.ghost { background: #fff; color: var(--ink); box-shadow: 0 4px 0 var(--line); border: 2px solid var(--line); font-size: 14px; padding: 7px 16px; }
 
   .screen { display: none; min-height: 100%; }
@@ -138,22 +145,31 @@
       ベンゼン → ナフタレン → … → <b>コロネン</b> をめざそう。<br>
       ナフタレンのしんかは <b>ランダムに分岐</b>🎲<br>
       直鎖の <b>アセン系</b> か <b>フェナレン系</b> に分かれるよ！<br>
+      続けて合体すると <b>連鎖ボーナス</b>✨<br>
+      🔦 <b>ブラックライト</b>中は光る分子の得点が2倍！<br>
+      つまったら <b>ゆらす</b>（1ゲーム3回・Sキー）<br>
       <span style="color:var(--sub)">クリック / タップ で落とす ・ ←→ + スペースでもOK</span>
     </div>
-    <button id="startBtn">スタート！</button>
-    <div class="bestLine">ベストスコア：<span id="titleBest">0</span></div>
+    <div class="modeRow">
+      <button id="startBtn">ふつうモード</button>
+      <button class="daily" id="dailyBtn">📅 デイリー <span id="dailyDate"></span></button>
+    </div>
+    <div class="bestLine">ベスト：<span id="titleBest">0</span> ・ 今日のデイリー：<span id="titleDaily">-</span></div>
   </div>
 </section>
 
 <!-- ゲーム画面 -->
 <section id="game" class="screen">
   <div class="card" id="scoreCard">
+    <div class="modeLabel" id="modeLabel">ふつうモード</div>
     <h3>スコア</h3>
     <div class="scoreNum" id="score">0</div>
-    <h3 style="margin-top:10px">ベスト</h3>
+    <h3 style="margin-top:10px" id="bestLabel">ベスト</h3>
     <div class="bestNum" id="best">0</div>
+    <button class="sub" id="shakeBtn">🫧 ゆらす ×3</button>
     <div class="btnRow">
       <button class="ghost" id="muteBtn">🔊 おと</button>
+      <button class="ghost" id="bgmBtn">🎵 BGM</button>
       <button class="ghost" id="toTitleBtn">🏠 タイトル</button>
     </div>
   </div>
@@ -165,7 +181,7 @@
         <h2>ゲームオーバー</h2>
         <div style="color:var(--sub);font-weight:800">スコア</div>
         <div class="final" id="finalScore">0</div>
-        <div class="topKind">最高到達：<span id="topKindName"></span></div>
+        <div class="topKind">最高到達：<span id="topKindName"></span> ・ 最大連鎖：<span id="maxComboOut"></span></div>
         <div class="newBest" id="newBest"></div>
         <div class="btnRow">
           <button id="retryBtn">もういちど</button>
@@ -225,21 +241,21 @@ const KINDS = {
                  rings: [[0,0]] },
   naphthalene: { name: 'ナフタレン',     tier: 1, fill: '#fff0a8', dark: '#d9a92e', face: ['dot', 'omega'],
                  rings: [[0,0],[1,0]] },
-  anthracene:  { name: 'アントラセン',   tier: 2, fill: '#bff2d6', dark: '#3fae78', face: ['dot', 'open'],
+  anthracene:  { name: 'アントラセン',   glow: '#6fa8ff', tier: 2, fill: '#bff2d6', dark: '#3fae78', face: ['dot', 'open'],
                  rings: [[0,0],[1,0],[2,0]] },
   phenalene:   { name: 'フェナレン',     tier: 2, fill: '#cfe0ff', dark: '#5b82d6', face: ['dot', 'cat'],
                  rings: [[0,0],[1,0],[1,-1]] },
-  tetracene:   { name: 'テトラセン',     tier: 3, fill: '#ffcfa6', dark: '#e0823c', face: ['happy', 'smile'],
+  tetracene:   { name: 'テトラセン',     glow: '#b8ff5c', tier: 3, fill: '#ffcfa6', dark: '#e0823c', face: ['happy', 'smile'],
                  rings: [[0,0],[1,0],[2,0],[3,0]] },
-  pyrene:      { name: 'ピレン',         tier: 3, fill: '#e6d2ff', dark: '#9467d9', face: ['dot', 'omega'],
+  pyrene:      { name: 'ピレン',         glow: '#a08cff', tier: 3, fill: '#e6d2ff', dark: '#9467d9', face: ['dot', 'omega'],
                  rings: [[1,-1],[0,0],[1,0],[0,1]] },
   pentacene:   { name: 'ペンタセン',     tier: 4, fill: '#aee3ff', dark: '#3d97cf', face: ['dot', 'open'],
                  rings: [[0,0],[1,0],[2,0],[3,0],[4,0]] },
-  perylene:    { name: 'ペリレン',       tier: 4, fill: '#ffc2c2', dark: '#dc5f5f', face: ['happy', 'cat'],
+  perylene:    { name: 'ペリレン',       glow: '#5ce1ff', tier: 4, fill: '#ffc2c2', dark: '#dc5f5f', face: ['happy', 'cat'],
                  rings: [[0,-1],[1,-1],[0,0],[-1,1],[0,1]] },
   triangulene: { name: 'トリアンギュレン', tier: 5, fill: '#b8f0ee', dark: '#2fa6a0', face: ['dot', 'smile'],
                  rings: [[2,-2],[1,-1],[2,-1],[0,0],[1,0],[2,0]] },
-  coronene:    { name: 'コロネン',       tier: 6, fill: '#ffe27a', dark: '#d69a10', face: ['happy', 'open'], sparkle: true,
+  coronene:    { name: 'コロネン',       glow: '#e4ff4d', tier: 6, fill: '#ffe27a', dark: '#d69a10', face: ['happy', 'open'], sparkle: true,
                  rings: [[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]] },
 };
 
@@ -328,15 +344,26 @@ function bodyPath(ctx, K) {
   }
 }
 
-function pickWeighted(list) {
-  let r = Math.random();
+// デイリーチャレンジ用のシード付き乱数
+function mulberry32(a) {
+  return () => {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+let rngDrop = Math.random, rngBranch = Math.random, rngEvent = Math.random;
+
+function pickWeighted(list, rnd = Math.random) {
+  let r = rnd();
   for (const [k, p] of list) { if ((r -= p) <= 0) return k; }
   return list[list.length - 1][0];
 }
 function evolve(kind) {
   const opts = EVOLVE[kind];
   if (!opts) return null;
-  return { kind: pickWeighted(opts), branched: opts.length > 1 };
+  return { kind: pickWeighted(opts, rngBranch), branched: opts.length > 1 };
 }
 
 // ============================================================
@@ -432,9 +459,15 @@ function drawMol(ctx, kind, x, y, sc = 1, ang = 0, o = {}) {
   g.addColorStop(.3, K.fill);
   g.addColorStop(1, K.rim);
   bodyPath(ctx, K);
+  if (o.glow) { ctx.shadowColor = o.glow; ctx.shadowBlur = 24; }
   ctx.fillStyle = o.ghost ? '#ddd' : g; ctx.fill();
+  ctx.shadowBlur = 0;
   ctx.lineWidth = Math.max(1.5 * lw, K.hh * .06);
   ctx.strokeStyle = o.ghost ? '#bbb' : K.dark; ctx.stroke();
+  if (o.glow) {
+    ctx.save(); ctx.globalAlpha *= .45; ctx.fillStyle = o.glow;
+    bodyPath(ctx, K); ctx.fill(); ctx.restore();
+  }
 
   // 骨格（六員環）
   const s = K.s;
@@ -494,11 +527,18 @@ function setupCanvas(cv, w, h) {
 // ============================================================
 // サウンド（WebAudio で合成）
 // ============================================================
-let actx = null, muted = false;
+function loadPref(k, def) { try { const v = localStorage.getItem(k); return v === null ? def : v === '1'; } catch (e) { return def; } }
+function savePref(k, v) { try { localStorage.setItem(k, v ? '1' : '0'); } catch (e) {} }
+let actx = null, muted = !loadPref('coroneneSE', true);
+function ensureAudio() {
+  actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+  if (actx.state === 'suspended') actx.resume();
+  return actx;
+}
 function tone(freq, dur, type = 'sine', vol = 0.12, slide = 1.6, delay = 0) {
   if (muted) return;
   try {
-    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    ensureAudio();
     const t = actx.currentTime + delay;
     const o = actx.createOscillator(), g = actx.createGain();
     o.type = type;
@@ -516,7 +556,103 @@ const sfx = {
   branch: () => { tone(880, .1, 'sine', .08, 1.2, .1); tone(1320, .12, 'sine', .07, 1.2, .18); },
   final: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, .25, 'triangle', .12, 1.01, i * .09)),
   over: () => [392, 330, 262].forEach((f, i) => tone(f, .3, 'triangle', .12, .98, i * .18)),
+  shake: () => { for (let i = 0; i < 6; i++) tone(170 + (i % 2) * 60, .06, 'square', .04, 1.3, i * .06); },
+  blacklight: () => { tone(260, .7, 'sine', .1, 2.2); tone(390, .7, 'sine', .06, 2.2, .12); },
+  combo: n => tone(660 * Math.pow(2, Math.min(n, 8) / 12), .12, 'square', .04, 1.5, .04),
 };
+
+// ---------------- BGM（その場で合成するかわいいループ） ----------------
+const BGM_EIGHTH = 60 / 112 / 2;
+const MEL = [
+  76, null, 79, null, 81, 79, 76, null,   72, null, 74, 76, null, 74, 72, null,
+  77, null, 76, 77, 81, null, 79, null,   79, null, 76, 74, null, null, 71, 74,
+  76, null, 79, null, 84, null, 83, 81,   79, null, 76, null, 81, 79, 76, null,
+  74, 76, 77, null, 81, null, 79, 77,     76, null, 74, null, 72, null, null, null,
+];
+const CHORDS = [  // [ベース, 和音]  C - Am - F - G - C - Am - Dm - G
+  [48, [60, 64, 67]], [45, [57, 60, 64]], [41, [57, 60, 65]], [43, [55, 59, 62]],
+  [48, [60, 64, 67]], [45, [57, 60, 64]], [50, [57, 62, 65]], [43, [55, 59, 62]],
+];
+const midi = m => 440 * Math.pow(2, (m - 69) / 12);
+const bgm = { on: loadPref('coroneneBGM', true), timer: null, gain: null, filter: null, next: 0, step: 0 };
+let noiseBuf = null;
+
+function bgmNote(freq, t, dur, type, vol) {
+  const o = actx.createOscillator(), g = actx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.015);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(bgm.filter);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+function bgmHat(t) {
+  if (!noiseBuf) {
+    noiseBuf = actx.createBuffer(1, Math.floor(actx.sampleRate * 0.05), actx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const src = actx.createBufferSource(); src.buffer = noiseBuf;
+  const f = actx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 7000;
+  const g = actx.createGain();
+  g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.04);
+  src.connect(f).connect(g).connect(bgm.filter);
+  src.start(t);
+}
+function bgmStep(i, t) {
+  const pos = i % 8, [root, ch] = CHORDS[Math.floor(i / 8)];
+  const m = MEL[i];
+  if (m) { bgmNote(midi(m), t, BGM_EIGHTH * 1.6, 'triangle', 0.11); bgmNote(midi(m + 12), t, BGM_EIGHTH * 1.2, 'sine', 0.025); }
+  if (pos % 4 === 0) bgmNote(midi(root), t, BGM_EIGHTH * 1.8, 'triangle', 0.13);
+  if (pos % 4 === 2) bgmNote(midi(root + 12), t, BGM_EIGHTH * 1.2, 'triangle', 0.07);
+  if (pos % 2 === 1) { bgmNote(midi(ch[(pos >> 1) % 3]), t, BGM_EIGHTH * 0.9, 'sine', 0.035); bgmHat(t); }
+}
+function bgmSchedule() {
+  while (bgm.next < actx.currentTime + 0.2) {
+    bgmStep(bgm.step, bgm.next);
+    bgm.next += BGM_EIGHTH;
+    bgm.step = (bgm.step + 1) % MEL.length;
+  }
+}
+function bgmStart() {
+  if (!bgm.on || bgm.timer) return;
+  try {
+    ensureAudio();
+    const t = actx.currentTime;
+    bgm.gain = actx.createGain();
+    bgm.gain.gain.setValueAtTime(0.0001, t);
+    bgm.gain.gain.exponentialRampToValueAtTime(0.55, t + 0.8);
+    bgm.filter = actx.createBiquadFilter();
+    bgm.filter.type = 'lowpass'; bgm.filter.frequency.value = 12000;
+    bgm.filter.connect(bgm.gain).connect(actx.destination);
+    bgm.next = t + 0.1; bgm.step = 0;
+    bgmSchedule();
+    bgm.timer = setInterval(bgmSchedule, 50);
+  } catch (e) { /* 音が出なくてもゲームは続行 */ }
+}
+function bgmStop() {
+  if (!bgm.timer) return;
+  clearInterval(bgm.timer); bgm.timer = null;
+  const g = bgm.gain;
+  try {
+    const t = actx.currentTime;
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(Math.max(g.gain.value, 0.0001), t);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
+  } catch (e) {}
+  setTimeout(() => { try { g.disconnect(); } catch (e) {} }, 700);
+}
+// ブラックライト中はこもった音に
+function bgmNight(on) {
+  if (!bgm.timer || !bgm.filter) return;
+  const t = actx.currentTime;
+  bgm.filter.frequency.cancelScheduledValues(t);
+  bgm.filter.frequency.setTargetAtTime(on ? 900 : 12000, t, 0.3);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) bgmStop();
+  else if (state === 'play') bgmStart();
+});
 
 // ============================================================
 // ベストスコア（ローカル保存）
@@ -524,6 +660,15 @@ const sfx = {
 function loadBest() { try { return +localStorage.getItem('coroneneBest') || 0; } catch (e) { return 0; } }
 function saveBest(v) { try { localStorage.setItem('coroneneBest', String(v)); } catch (e) {} }
 let best = loadBest();
+function todayJST() {
+  const d = new Date(Date.now() + 9 * 3600e3);
+  const y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, day = d.getUTCDate();
+  return { key: `${y}${String(m).padStart(2, '0')}${String(day).padStart(2, '0')}`, label: `${m}/${day}` };
+}
+function loadDaily(key) { try { return +localStorage.getItem('coroneneDaily-' + key) || 0; } catch (e) { return 0; } }
+function saveDaily(key, v) { try { localStorage.setItem('coroneneDaily-' + key, String(v)); } catch (e) {} }
+let mode = 'normal', daily = todayJST(), dailyBest = loadDaily(daily.key);
+function curBest() { return mode === 'daily' ? dailyBest : best; }
 
 // ============================================================
 // タイトル画面
@@ -588,9 +733,23 @@ let engine, world, pending, particles, texts;
 let score, current, next, holdX, dropReady, cooldownEnd, lastDropAt = -1e9, dangerT, warn, gt, acc;
 let discovered = new Set();
 let topKind = 'benzene';   // このゲームで作った最高段階の分子
+// 連鎖コンボ
+const COMBO_WINDOW = 1000;   // 前の合体からこの時間内なら連鎖
+let combo = 0, maxCombo = 0, lastMergeAt = -1e9;
+// ゆらす
+const SHAKES = 3;
+let shakesLeft = SHAKES, shakeAt = -1e9, graceUntil = 0;
+// ブラックライト
+const BL_DUR = 9000, BL_FADE = 600;
+let blStart = -1e9, blEnd = -1e9, nextBL = 0, blWasOn = false;
+function blLevel() {
+  if (gt < blStart || gt > blEnd) return 0;
+  return Math.min(1, (gt - blStart) / BL_FADE, (blEnd - gt) / BL_FADE);
+}
+function blActive() { return gt >= blStart && gt <= blEnd; }
 let keys = {};
 
-function randKind() { return pickWeighted(DROP_POOL); }
+function randKind() { return pickWeighted(DROP_POOL, rngDrop); }
 
 function discover(k) {
   if (!discovered.has(k)) { discovered.add(k); drawTree(); }
@@ -617,6 +776,11 @@ function resetGame() {
   holdX = W / 2; dropReady = true; cooldownEnd = 0;
   discovered = new Set([current, next]);
   topKind = [current, next].sort((a, b) => KINDS[b].tier - KINDS[a].tier)[0];
+  combo = 0; maxCombo = 0; lastMergeAt = -1e9;
+  shakesLeft = SHAKES; shakeAt = -1e9; graceUntil = 0;
+  blStart = blEnd = -1e9; blWasOn = false;
+  nextBL = 35000 + rngEvent() * 20000;
+  updateShakeBtn();
   updateScore(false);
   updateNext();
   drawTree();
@@ -650,10 +814,18 @@ function processMerges() {
     const y = (a.position.y + b.position.y) / 2;
     const K = KINDS[a.kind];
     Composite.remove(world, [a, b]);
+    combo = gt - lastMergeAt <= COMBO_WINDOW ? combo + 1 : 1;
+    lastMergeAt = gt;
+    maxCombo = Math.max(maxCombo, combo);
+    const comboMul = Math.min(2.5, 1 + 0.25 * (combo - 1));
+    if (combo >= 2) {
+      texts.push({ x, y: y - 40, text: `${combo}れんさ！ ×${comboMul}`, life: 1000, max: 1000, color: '#ff7a45', size: 18 + Math.min(combo, 8) * 2 });
+      sfx.combo(combo);
+    }
     const ev = evolve(a.kind);
     if (!ev) {
       // コロネン同士 → グラフェン化して消える
-      addScore(FINAL_BONUS);
+      addScore(Math.round(FINAL_BONUS * comboMul));
       burst(x, y, K, 60, 1.8);
       texts.push({ x, y, text: `グラフェン化！ +${FINAL_BONUS}`, life: 1600, max: 1600, color: K.dark, size: 26 });
       sfx.final();
@@ -665,14 +837,15 @@ function processMerges() {
     Body.setVelocity(nb, { x: (a.velocity.x + b.velocity.x) / 2, y: (a.velocity.y + b.velocity.y) / 2 });
     discover(ev.kind);
     if (NK.tier > KINDS[topKind].tier) topKind = ev.kind;
-    const pts = POINTS[NK.tier];
+    const glowBonus = blActive() && NK.glow ? 2 : 1;
+    const pts = Math.round(POINTS[NK.tier] * comboMul * glowBonus);
     addScore(pts);
     burst(x, y, NK, 14 + NK.tier * 5, 1 + NK.tier * .15);
     sfx.merge(NK.tier);
     if (ev.branched) sfx.branch();
     texts.push({
       x, y: y - NK.hh * 0.4,
-      text: (ev.branched ? '🎲' : '') + `${NK.name} +${pts}`,
+      text: (ev.branched ? '🎲' : '') + (glowBonus > 1 ? '🔦' : '') + `${NK.name} +${pts}`,
       life: 1100, max: 1100, color: NK.dark, size: 14 + NK.tier * 1.5,
     });
   }
@@ -699,7 +872,7 @@ function addScore(v) {
 function updateScore(bump) {
   const el = $('score');
   el.textContent = score;
-  $('best').textContent = Math.max(best, score);
+  $('best').textContent = Math.max(curBest(), score);
   if (bump) { el.classList.add('bump'); setTimeout(() => el.classList.remove('bump'), 120); }
 }
 function updateNext() {
@@ -721,18 +894,39 @@ function drop() {
   updateNext();
 }
 
+function shake() {
+  if (state !== 'play' || shakesLeft <= 0) return;
+  shakesLeft--; shakeAt = gt; graceUntil = gt + 1800;
+  for (const b of Composite.allBodies(world)) {
+    if (!b.kind) continue;
+    Body.setVelocity(b, { x: b.velocity.x + (Math.random() - .5) * 8, y: b.velocity.y - (3 + Math.random() * 5) });
+    Body.setAngularVelocity(b, b.angularVelocity + (Math.random() - .5) * .2);
+  }
+  sfx.shake();
+  updateShakeBtn();
+}
+function updateShakeBtn() {
+  const btn = $('shakeBtn');
+  btn.textContent = `🫧 ゆらす ×${shakesLeft}`;
+  btn.disabled = shakesLeft <= 0;
+}
+
 function clampX(x, R) { return Math.max(BOX.l + R + 1, Math.min(BOX.r - R - 1, x)); }
 
 function gameOver() {
   state = 'over';
   sfx.over();
-  const isBest = score > best;
-  if (isBest) { best = score; saveBest(best); }
+  bgmStop();
+  let isBest = false;
+  if (mode === 'daily') {
+    if (score > dailyBest) { dailyBest = score; saveDaily(daily.key, score); isBest = true; }
+  } else if (score > best) { best = score; saveBest(best); isBest = true; }
   $('finalScore').textContent = score;
-  $('newBest').textContent = isBest ? '🎉 ベストスコア更新！' : '';
+  $('newBest').textContent = isBest ? (mode === 'daily' ? '🎉 今日のベスト更新！' : '🎉 ベストスコア更新！') : '';
   $('topKindName').textContent = KINDS[topKind].name;
+  $('maxComboOut').textContent = maxCombo;
   $('shareMsg').textContent = '';
-  $('best').textContent = best;
+  $('best').textContent = curBest();
   setTimeout(() => $('overOverlay').classList.add('show'), 700);
 }
 
@@ -795,13 +989,15 @@ board.addEventListener('pointerup', e => { holdX = toLocalX(e.clientX); drop(); 
 addEventListener('keydown', e => {
   keys[e.key] = true;
   if (state === 'play' && (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowDown')) { e.preventDefault(); drop(); }
+  if (state === 'play' && (e.key === 's' || e.key === 'S') && !e.repeat) shake();
 });
 addEventListener('keyup', e => { keys[e.key] = false; });
 
 // ---------------- SNS 共有 ----------------
 function pageUrl() { return /^https?:/.test(location.protocol) ? location.href.split('#')[0] : ''; }
 function shareText() {
-  return `🧪コロネンゲームで ${score}点！\n最高到達：${KINDS[topKind].name}\n#コロネンゲーム`;
+  const head = mode === 'daily' ? `🧪コロネンゲーム デイリー${daily.label} で ${score}点！` : `🧪コロネンゲームで ${score}点！`;
+  return `${head}\n最高到達：${KINDS[topKind].name}／最大${maxCombo}連鎖\n#コロネンゲーム`;
 }
 function openShare(url) { window.open(url, '_blank', 'noopener,noreferrer'); }
 
@@ -834,9 +1030,9 @@ function resultImage() {
     roundRect(g, 20, 14, W - 40, 88, 20); g.fill();
     g.textAlign = 'center'; g.textBaseline = 'middle';
     g.fillStyle = '#e0648c'; g.font = `800 22px ${FONT}`;
-    g.fillText(`コロネンゲーム  ${score}点`, W / 2, 44);
+    g.fillText(`コロネンゲーム${mode === 'daily' ? ' デイリー' + daily.label : ''}  ${score}点`, W / 2, 44);
     g.fillStyle = '#5a3d4a'; g.font = `800 15px ${FONT}`;
-    g.fillText(`最高到達：${KINDS[topKind].name}`, W / 2, 76);
+    g.fillText(`最高到達：${KINDS[topKind].name} ・ 最大${maxCombo}連鎖`, W / 2, 76);
     c.toBlob(b => resolve(b), 'image/png');
   });
 }
@@ -855,35 +1051,75 @@ $('shareNative').onclick = async () => {
 function show(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
 }
-function startGame() {
+function startGame(m) {
+  mode = m;
+  if (mode === 'daily') {
+    // 同じ日なら全員おなじ順番で分子が落ちてくる（日本時間で日付が変わる）
+    daily = todayJST(); dailyBest = loadDaily(daily.key);
+    const seed = +daily.key;
+    rngDrop = mulberry32(seed); rngBranch = mulberry32(seed ^ 0x9e3779b9); rngEvent = mulberry32(seed ^ 0x85ebca6b);
+  } else {
+    rngDrop = rngBranch = rngEvent = Math.random;
+  }
   $('overOverlay').classList.remove('show');
   resetGame();
   state = 'play';
+  $('modeLabel').textContent = mode === 'daily' ? `📅 デイリー ${daily.label}` : 'ふつうモード';
+  $('modeLabel').classList.toggle('daily', mode === 'daily');
+  $('bestLabel').textContent = mode === 'daily' ? '今日のベスト' : 'ベスト';
+  updateScore(false);
   show('game');
   tone(660, .1, 'triangle', .1, 1.5);
+  bgmStart();
+}
+function updateTitleInfo() {
+  daily = todayJST(); dailyBest = loadDaily(daily.key);
+  $('titleBest').textContent = best;
+  $('titleDaily').textContent = dailyBest || '-';
+  $('dailyDate').textContent = daily.label;
 }
 function toTitle() {
   state = 'title';
+  bgmStop();
   $('overOverlay').classList.remove('show');
-  $('titleBest').textContent = best;
+  updateTitleInfo();
   show('title');
 }
-$('startBtn').onclick = startGame;
-$('retryBtn').onclick = startGame;
+function updateSoundBtns() {
+  $('muteBtn').textContent = muted ? '🔇 おと' : '🔊 おと';
+  $('bgmBtn').textContent = bgm.on ? '🎵 BGM' : '🔕 BGM';
+}
+$('startBtn').onclick = () => startGame('normal');
+$('dailyBtn').onclick = () => startGame('daily');
+$('retryBtn').onclick = () => startGame(mode);
 $('overTitleBtn').onclick = toTitle;
 $('toTitleBtn').onclick = toTitle;
-$('muteBtn').onclick = () => {
-  muted = !muted;
-  $('muteBtn').textContent = muted ? '🔇 おと' : '🔊 おと';
+$('shakeBtn').onclick = shake;
+$('muteBtn').onclick = () => { muted = !muted; savePref('coroneneSE', !muted); updateSoundBtns(); };
+$('bgmBtn').onclick = () => {
+  bgm.on = !bgm.on; savePref('coroneneBGM', bgm.on); updateSoundBtns();
+  if (bgm.on && state === 'play') { bgmStart(); bgmNight(blActive()); } else bgmStop();
 };
-$('titleBest').textContent = best;
+updateSoundBtns();
+updateTitleInfo();
 
 // ---------------- 描画：ボード ----------------
-function drawBoard(now) {
-  drawLab();
-  drawBeakerBack();
+function bodyScale(b) {
+  const age = gt - b.pop;
+  return age < 280 ? 0.55 + 0.45 * easeOutBack(age / 280) : 1;
+}
 
-  // デッドライン（MAX）
+function drawBoard(now) {
+  // ゆらし中は画面ごと横に揺らす
+  const sp = (gt - shakeAt) / 500;
+  const off = state === 'play' && sp >= 0 && sp < 1 ? Math.sin(sp * 40) * 8 * (1 - sp) : 0;
+  ctx.save();
+  ctx.translate(off, 0);
+  drawBoardInner(now);
+  ctx.restore();
+}
+
+function drawDeadline(now) {
   const blinkOn = warn && Math.floor(now / 200) % 2 === 0;
   ctx.strokeStyle = blinkOn ? 'rgba(255,80,110,.95)' : 'rgba(255,120,150,.5)';
   ctx.lineWidth = 2.5; ctx.setLineDash([10, 7]);
@@ -892,6 +1128,12 @@ function drawBoard(now) {
   ctx.font = `800 11px ${FONT}`; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
   ctx.fillStyle = blinkOn ? 'rgba(255,80,110,.95)' : 'rgba(255,120,150,.75)';
   ctx.fillText('MAX', BOX.l + 8, BOX.top - 3);
+}
+
+function drawBoardInner(now) {
+  drawLab();
+  drawBeakerBack();
+  drawDeadline(now);
 
   // 持っている分子 + ガイド
   if (state === 'play' && dropReady) {
@@ -911,13 +1153,11 @@ function drawBoard(now) {
   const sad = state === 'over';
   for (const b of Composite.allBodies(world)) {
     if (!b.kind) continue;
-    const age = gt - b.pop;
-    let sc = 1;
-    if (age < 280) { const p = age / 280; sc = 0.55 + 0.45 * easeOutBack(p); }
     const blink = ((now / 1000 + b.seed) % 4.5) < 0.12;
-    drawMol(ctx, b.kind, b.position.x, b.position.y, sc, b.angle, { blink, sad, t: now });
+    drawMol(ctx, b.kind, b.position.x, b.position.y, bodyScale(b), b.angle, { blink, sad, t: now });
   }
   drawBeakerFront();
+  drawBlacklight(now, sad);
 
   // パーティクル
   for (const p of particles) {
@@ -948,6 +1188,38 @@ function drawBoard(now) {
     ctx.fillStyle = t.color; ctx.fillText(t.text, tx, ty);
     ctx.globalAlpha = 1;
   }
+}
+
+// ---------------- ブラックライト ----------------
+function drawBlacklight(now, sad) {
+  const L = blLevel();
+  if (!L) return;
+  ctx.save();
+  // 部屋を暗く
+  ctx.fillStyle = `rgba(22,8,52,${0.74 * L})`;
+  ctx.fillRect(-20, 0, W + 40, H);
+  // 上から UV ランプの光
+  const g = ctx.createLinearGradient(0, 0, 0, 170);
+  g.addColorStop(0, `rgba(190,110,255,${0.5 * L})`); g.addColorStop(1, 'rgba(190,110,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(-20, 0, W + 40, 170);
+  ctx.fillStyle = `rgba(235,200,255,${L})`;
+  ctx.shadowColor = '#c77dff'; ctx.shadowBlur = 16;
+  roundRect(ctx, 30, 3, W - 60, 6, 3); ctx.fill();
+  ctx.shadowBlur = 0;
+  drawDeadline(now);
+  // 蛍光を出す分子だけ光る
+  ctx.globalAlpha = L;
+  for (const b of Composite.allBodies(world)) {
+    const K = b.kind && KINDS[b.kind];
+    if (!K || !K.glow) continue;
+    const blink = ((now / 1000 + b.seed) % 4.5) < 0.12;
+    drawMol(ctx, b.kind, b.position.x, b.position.y, bodyScale(b), b.angle, { blink, sad, t: now, glow: K.glow });
+  }
+  if (state === 'play' && dropReady && KINDS[current].glow) {
+    const CK = KINDS[current];
+    drawMol(ctx, current, clampX(holdX, CK.hw), DROP_Y, 1, Math.sin(now / 400) * 0.08, { t: now, glow: CK.glow });
+  }
+  ctx.restore();
 }
 
 // ---------------- 実験室・ビーカー・ピペット ----------------
@@ -1092,8 +1364,26 @@ function update(dt) {
     holdX = Math.max(0, Math.min(W, holdX));
     if (!dropReady && gt >= cooldownEnd) dropReady = true;
 
+    // ブラックライトの開始・終了
+    if (gt >= nextBL && !blActive()) {
+      blStart = gt; blEnd = gt + BL_DUR;
+      nextBL = blEnd + 30000 + rngEvent() * 25000;
+      texts.push({ x: W / 2, y: H * 0.36, text: '🔦 ブラックライト！', life: 2200, max: 2200, color: '#b48cff', size: 28 });
+      texts.push({ x: W / 2, y: H * 0.36 + 40, text: '光る分子は得点×2', life: 2200, max: 2200, color: '#7fd8ff', size: 18 });
+      sfx.blacklight();
+    }
+    const blOn = blActive();
+    if (blOn !== blWasOn) { bgmNight(blOn); blWasOn = blOn; }
+
     acc += dt;
     while (acc >= STEP) {
+      // ゆらし中はビーカーを左右に揺さぶる
+      const ss = gt - shakeAt;
+      if (ss >= 0 && ss < 400) {
+        const push = Math.sin(ss / 25) * 0.9;
+        for (const b of Composite.allBodies(world))
+          if (b.kind) Body.setVelocity(b, { x: b.velocity.x + push, y: b.velocity.y });
+      }
       Engine.update(engine, STEP);
       processMerges();
       acc -= STEP;
@@ -1107,6 +1397,7 @@ function update(dt) {
       if (top < BOX.top) over = true;
       if (top < BOX.top + 36) warn = true;
     }
+    if (gt < graceUntil) over = false;   // ゆらした直後は判定しない
     dangerT = over ? dangerT + dt : Math.max(0, dangerT - dt);
     if (dangerT > 2000) gameOver();
   }
