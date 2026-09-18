@@ -25,6 +25,7 @@
     --line: #f3dcc8;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; height: 100%; }
   body {
     font-family: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif;
@@ -106,6 +107,23 @@
   #nextName { font-weight: 800; font-size: 14px; }
   #treeCanvas { width: 100%; max-width: 230px; }
   .legend { font-size: 11px; color: var(--sub); margin-top: 2px; }
+  .grapheneLine { margin-top: 6px; font-weight: 800; font-size: 14px; color: #59627a; background: #eef0f6; border-radius: 999px; padding: 3px 10px; display: inline-block; }
+
+  /* 分子図鑑 */
+  .dex { position: fixed; inset: 0; background: rgba(90,61,74,.4); display: none; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+  .dex.show { display: flex; animation: fadeIn .2s; }
+  .dexCard { background: var(--card); border-radius: 28px; border: 4px solid #fff; box-shadow: 0 10px 30px rgba(0,0,0,.2); max-width: 780px; width: 100%; max-height: calc(100vh - 32px); display: flex; flex-direction: column; padding: 18px; }
+  .dexHead { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .dexHead h2 { margin: 0; font-size: 22px; color: var(--accent-dark); }
+  .dexHead h2 small { font-size: 14px; color: var(--sub); }
+  .dexGrid { overflow: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 10px; }
+  .dexItem { display: flex; gap: 12px; background: #fff7fa; border-radius: 18px; padding: 10px 12px; align-items: flex-start; }
+  .dexItem canvas { width: 80px; height: 80px; flex: none; }
+  .dexItem .nm { font-weight: 800; font-size: 16px; }
+  .dexItem .fm { font-size: 12px; color: var(--sub); font-weight: 800; }
+  .dexItem .tx { font-size: 13px; line-height: 1.6; margin-top: 4px; }
+  .dexItem.unknown .nm, .dexItem.unknown .tx { color: #c4b0b8; }
+  .titleSub { margin-top: 12px; }
 
   /* オーバーレイ */
   .overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; border-radius: 28px; background: rgba(90,61,74,.35); }
@@ -169,6 +187,7 @@
       <button class="daily" id="dailyBtn">📅 デイリー <span id="dailyDate"></span></button>
     </div>
     <div class="bestLine">ベスト：<span id="titleBest">0</span> ・ 今日のデイリー：<span id="titleDaily">-</span></div>
+    <button class="ghost titleSub" id="dexBtnTitle">📖 分子図鑑</button>
   </div>
 </section>
 
@@ -180,10 +199,12 @@
     <div class="scoreNum" id="score">0</div>
     <h3 style="margin-top:10px" id="bestLabel">ベスト</h3>
     <div class="bestNum" id="best">0</div>
+    <div class="grapheneLine" id="grapheneLine" hidden>⬢ グラフェン化 ×<span id="grapheneNum">0</span></div>
     <button class="sub" id="shakeBtn">🫧 ゆらす ×3</button>
     <div class="btnRow">
       <button class="ghost" id="muteBtn">🔊 おと</button>
       <button class="ghost" id="bgmBtn">🎵 BGM</button>
+      <button class="ghost" id="dexBtnGame">📖 図鑑</button>
       <button class="ghost" id="toTitleBtn">🏠 タイトル</button>
     </div>
   </div>
@@ -225,6 +246,17 @@
   </div>
 </section>
 
+<!-- 分子図鑑 -->
+<div class="dex" id="dex">
+  <div class="dexCard">
+    <div class="dexHead">
+      <h2>📖 分子図鑑 <small id="dexCount"></small></h2>
+      <button class="ghost" id="dexClose">とじる</button>
+    </div>
+    <div class="dexGrid" id="dexGrid"></div>
+  </div>
+</div>
+
 <script>
 (() => {
 'use strict';
@@ -237,7 +269,7 @@ const FONT = '"M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif';
 // 分子データ
 //   rings: 六員環の中心（pointy-top 六角格子の axial 座標 [q, r]）
 // ============================================================
-const RADII = [18, 26, 35, 45, 57, 72, 92];      // 段階ごとの大きさ（円なら半径。直鎖状は同じ面積のカプセル）
+const RADII = [18, 26, 35, 45, 57, 72, 92, 110];      // 段階ごとの大きさ（円なら半径。直鎖状は同じ面積のカプセル）
 const LINEAR = new Set(['naphthalene', 'anthracene', 'tetracene', 'pentacene']);  // 直鎖状 → フットボール形のあたり判定
 const FOOTBALL_B = 1.45, FOOTBALL_TAPER = 0.13, FOOTBALL_N = 36;
 
@@ -271,6 +303,9 @@ const KINDS = {
                  rings: [[2,-2],[1,-1],[2,-1],[0,0],[1,0],[2,0]] },
   coronene:    { name: 'コロネン',       glow: '#e4ff4d', tier: 6, fill: '#ffe27a', dark: '#d69a10', face: ['happy', 'open'], sparkle: true,
                  rings: [[0,0],[1,0],[-1,0],[0,1],[0,-1],[1,-1],[-1,1]] },
+  // コロネン同士の合体で生まれ、すぐ消える（図鑑・系統図用）
+  graphene:    { name: 'グラフェン',     tier: 7, fill: '#e3e7f2', dark: '#59627a', face: ['happy', 'smile'], sparkle: true,
+                 rings: (() => { const r = []; for (let q = -2; q <= 2; q++) for (let s = -2; s <= 2; s++) if (Math.abs(q + s) <= 2) r.push([q, s]); return r; })() },
 };
 
 // しんかルール：[結果, 確率]
@@ -285,6 +320,23 @@ const EVOLVE = {
   perylene:    [['triangulene', 1]],
   triangulene: [['coronene', 1]],
   coronene:    null,
+};
+
+// 図鑑の説明
+const DEX_ORDER = ['benzene', 'naphthalene', 'anthracene', 'tetracene', 'pentacene',
+                   'phenalene', 'pyrene', 'perylene', 'triangulene', 'coronene', 'graphene'];
+const DEX_INFO = {
+  benzene:     ['C₆H₆', 'いちばん基本の芳香族。1825年にファラデーが発見。ケクレは「ヘビが自分のしっぽをくわえる夢」を見て、六角形の構造を思いついたといわれる。'],
+  naphthalene: ['C₁₀H₈', 'ベンゼン環が2つつながった分子。防虫剤の「ナフタリン」でおなじみ。固体のまま気体になる（昇華する）。'],
+  anthracene:  ['C₁₄H₁₀', '3つの環がまっすぐ並んだアセン。紫外線を当てると青く光る。赤い染料アリザリンの原料にもなった。'],
+  tetracene:   ['C₁₈H₁₂', '4つ並んだアセンで、実物もオレンジ色の結晶。1つの光から励起状態を2つ生む「一重項分裂」で、太陽電池の研究で注目されている。'],
+  pentacene:   ['C₂₂H₁₄', '5つ並んだアセンで、濃い青紫色。有機トランジスタ（有機半導体）の代表選手。光と酸素に弱く、空気中では少しずつ壊れる。'],
+  phenalene:   ['C₁₃H₁₀', '3つの環が三角形に集まった分子。炭素の数が奇数なので、不対電子を1つもつ「フェナレニルラジカル」になりやすく、安定なラジカルの代表として知られる。'],
+  pyrene:      ['C₁₆H₁₀', '4つの環がひし形に集まった分子。強い青い蛍光を出し、2つの分子が近づくと光の色が変わる（エキシマー発光）ので、分子どうしの距離を測る「ものさし」に使われる。'],
+  perylene:    ['C₂₀H₁₂', 'ナフタレン2つが手をつないだ形。蛍光が非常に強く、赤い自動車用塗料などに使われる「ペリレン顔料」の骨格になっている。'],
+  triangulene: ['C₂₂H₁₂', 'どう二重結合を書いても電子が2つ余ってしまう不思議な分子。長いあいだ合成できなかったが、2017年に顕微鏡の針先で1分子ずつ作られた。'],
+  coronene:    ['C₂₄H₁₂', 'ベンゼン環が花のように7つ集まった分子で、「スーパーベンゼン」とも呼ばれる。宇宙空間の星間分子の候補としても研究されている。'],
+  graphene:    ['C（炭素1層のシート）', '炭素原子が六角形の網目に並んだ厚さ原子1個ぶんのシート。2004年にセロハンテープで黒鉛からはがして取り出され、2010年のノーベル物理学賞に。鋼鉄より強く、電気もよく通す。'],
 };
 
 const DROP_POOL = [['benzene', .4], ['naphthalene', .3], ['anthracene', .15], ['phenalene', .15]];
@@ -762,7 +814,7 @@ const board = $('board');
 const ctx = setupCanvas(board, W, H);
 const nextCtx = setupCanvas($('nextCanvas'), 110, 110);
 const treeCv = $('treeCanvas');
-const TREE_W = 230, TREE_H = 486;
+const TREE_W = 230, TREE_H = 560;
 const treeCtx = setupCanvas(treeCv, TREE_W, TREE_H);
 treeCv.style.aspectRatio = `${TREE_W} / ${TREE_H}`;
 
@@ -771,6 +823,23 @@ let engine, world, pending, particles, texts;
 let score, current, next, holdX, dropReady, cooldownEnd, lastDropAt = -1e9, dangerT, warn, gt, acc;
 let discovered = new Set();
 let topKind = 'benzene';   // このゲームで作った最高段階の分子
+let grapheneCount = 0;     // このゲームでグラフェン化した回数
+let paused = false;        // 図鑑を開いている間は一時停止
+
+// 図鑑：これまでに出会った回数（ブラウザに保存）
+let dex = {};
+try { dex = JSON.parse(localStorage.getItem('coroneneDex') || '{}') || {}; } catch (e) { dex = {}; }
+function dexAdd(k) {
+  const first = !dex[k];
+  dex[k] = (dex[k] || 0) + 1;
+  try { localStorage.setItem('coroneneDex', JSON.stringify(dex)); } catch (e) {}
+  if (first && state === 'play')
+    texts.push({ x: W / 2, y: H * 0.26, text: `📖 図鑑に登録！ ${KINDS[k].name}`, life: 1900, max: 1900, color: '#e0648c', size: 20 });
+}
+function topText() {
+  if (grapheneCount > 0) return 'グラフェン' + (grapheneCount > 1 ? ` ×${grapheneCount}` : '');
+  return KINDS[topKind].name;
+}
 // 連鎖コンボ
 const COMBO_WINDOW = 1000;   // 前の合体からこの時間内なら連鎖
 let combo = 0, maxCombo = 0, lastMergeAt = -1e9;
@@ -815,6 +884,8 @@ function resetGame() {
   discovered = new Set([current, next]);
   topKind = [current, next].sort((a, b) => KINDS[b].tier - KINDS[a].tier)[0];
   combo = 0; maxCombo = 0; lastMergeAt = -1e9;
+  grapheneCount = 0; paused = false;
+  $('grapheneLine').hidden = true;
   shakesLeft = diff === 'hard' ? 0 : SHAKES; shakeAt = -1e9; graceUntil = 0;
   blStart = blEnd = -1e9; blWasOn = false;
   nextBL = 35000 + rngEvent() * 20000;
@@ -863,9 +934,16 @@ function processMerges() {
     const ev = evolve(a.kind);
     if (!ev) {
       // コロネン同士 → グラフェン化して消える
-      addScore(Math.round(FINAL_BONUS * comboMul));
+      const gpts = Math.round(FINAL_BONUS * comboMul);
+      addScore(gpts);
+      grapheneCount++;
+      $('grapheneNum').textContent = grapheneCount;
+      $('grapheneLine').hidden = false;
+      discover('graphene');
+      dexAdd('graphene');
       burst(x, y, K, 60, 1.8);
-      texts.push({ x, y, text: `グラフェン化！ +${FINAL_BONUS}`, life: 1600, max: 1600, color: K.dark, size: 26 });
+      burst(x, y, KINDS.graphene, 30, 1.5);
+      texts.push({ x, y, text: `グラフェン化！${grapheneCount > 1 ? ' ×' + grapheneCount : ''} +${gpts}`, life: 1600, max: 1600, color: KINDS.graphene.dark, size: 26 });
       sfx.final();
       continue;
     }
@@ -874,6 +952,7 @@ function processMerges() {
     const nb = makeBody(ev.kind, clampX(x, NK.hw), Math.min(y, BOX.bottom - NK.hh));
     Body.setVelocity(nb, { x: (a.velocity.x + b.velocity.x) / 2, y: (a.velocity.y + b.velocity.y) / 2 });
     discover(ev.kind);
+    dexAdd(ev.kind);
     if (NK.tier > KINDS[topKind].tier) topKind = ev.kind;
     const glowBonus = blActive() && NK.glow ? 2 : 1;
     const pts = Math.round(POINTS[NK.tier] * comboMul * glowBonus);
@@ -922,9 +1001,10 @@ function updateNext() {
 }
 
 function drop() {
-  if (state !== 'play' || !dropReady) return;
+  if (state !== 'play' || !dropReady || paused) return;
   holdX = clampX(holdX, KINDS[current].hw);
   const b = makeBody(current, holdX, DROP_Y);
+  dexAdd(current);
   b.pop = -1e9;
   current = next; next = randKind();
   dropReady = false; cooldownEnd = gt + 550; lastDropAt = gt;
@@ -933,7 +1013,7 @@ function drop() {
 }
 
 function shake() {
-  if (state !== 'play' || shakesLeft <= 0) return;
+  if (state !== 'play' || shakesLeft <= 0 || paused) return;
   shakesLeft--; shakeAt = gt; graceUntil = gt + 1800;
   for (const b of Composite.allBodies(world)) {
     if (!b.kind) continue;
@@ -961,7 +1041,7 @@ function gameOver() {
   } else if (score > best) { best = score; saveBest(best); isBest = true; }
   $('finalScore').textContent = score;
   $('newBest').textContent = isBest ? (mode === 'daily' ? '🎉 今日のベスト更新！' : '🎉 ベストスコア更新！') : '';
-  $('topKindName').textContent = KINDS[topKind].name;
+  $('topKindName').textContent = topText();
   $('maxComboOut').textContent = maxCombo;
   $('shareMsg').textContent = '';
   $('best').textContent = curBest();
@@ -974,7 +1054,7 @@ const TREE = {
   anthracene: [.26, 2], phenalene: [.74, 2],
   tetracene: [.26, 3], pyrene: [.74, 3],
   pentacene: [.26, 4], perylene: [.74, 4],
-  triangulene: [.5, 5], coronene: [.5, 6],
+  triangulene: [.5, 5], coronene: [.5, 6], graphene: [.5, 7],
 };
 const TREE_ROW = 68, TREE_TOP = 30;
 function treePos(k) { const [fx, row] = TREE[k]; return [fx * TREE_W, TREE_TOP + row * TREE_ROW]; }
@@ -985,7 +1065,7 @@ function drawTree() {
   c.clearRect(0, 0, TREE_W, TREE_H);
   // 矢印
   for (const from in EVOLVE) {
-    const opts = EVOLVE[from];
+    const opts = from === 'coronene' ? [['graphene', 1]] : EVOLVE[from];
     if (!opts) continue;
     for (const [to] of opts) {
       const [x1, y1] = treePos(from), [x2, y2] = treePos(to);
@@ -1036,7 +1116,7 @@ function pageUrl() { return /^https?:/.test(location.protocol) ? location.href.s
 function shareText() {
   const tag = `【${DIFF_NAME[diff]}${mode === 'daily' ? '・デイリー' + daily.label : ''}】`;
   const head = `🧪コロネンゲーム${tag}で ${score}点！`;
-  return `${head}\n最高到達：${KINDS[topKind].name}／最大${maxCombo}連鎖\n#コロネンゲーム`;
+  return `${head}\n最高到達：${topText()}／最大${maxCombo}連鎖\n#コロネンゲーム`;
 }
 function openShare(url) { window.open(url, '_blank', 'noopener,noreferrer'); }
 
@@ -1071,7 +1151,7 @@ function resultImage() {
     g.fillStyle = '#e0648c'; g.font = `800 22px ${FONT}`;
     g.fillText(`コロネンゲーム【${DIFF_NAME[diff]}${mode === 'daily' ? '・デイリー' + daily.label : ''}】 ${score}点`, W / 2, 44);
     g.fillStyle = '#5a3d4a'; g.font = `800 15px ${FONT}`;
-    g.fillText(`最高到達：${KINDS[topKind].name} ・ 最大${maxCombo}連鎖`, W / 2, 76);
+    g.fillText(`最高到達：${topText()} ・ 最大${maxCombo}連鎖`, W / 2, 76);
     c.toBlob(b => resolve(b), 'image/png');
   });
 }
@@ -1085,6 +1165,41 @@ $('shareNative').onclick = async () => {
     await navigator.share(data);
   } catch (e) { /* キャンセル時など */ }
 };
+
+// ---------------- 分子図鑑 ----------------
+function openDex() {
+  if (state === 'play') paused = true;
+  const grid = $('dexGrid');
+  grid.innerHTML = '';
+  let found = 0;
+  for (const k of DEX_ORDER) {
+    const K = KINDS[k], known = !!dex[k];
+    if (known) found++;
+    const item = document.createElement('div');
+    item.className = 'dexItem' + (known ? '' : ' unknown');
+    const cv = document.createElement('canvas');
+    const c = setupCanvas(cv, 80, 80);
+    drawMol(c, k, 40, 40, Math.min(36 / K.hw, 36 / K.hh), 0, { ghost: !known });
+    const body = document.createElement('div');
+    const [formula, text] = DEX_INFO[k];
+    body.innerHTML = known
+      ? `<div class="nm">${K.name}</div><div class="fm">${formula} ・ ${k === 'graphene' ? 'グラフェン化' : '出会った回数'} ${dex[k]}回</div><div class="tx">${text}</div>`
+      : `<div class="nm">？？？</div><div class="tx">まだ出会っていない分子。しんかさせて見つけよう！</div>`;
+    item.append(cv, body);
+    grid.append(item);
+  }
+  $('dexCount').textContent = `${found} / ${DEX_ORDER.length}`;
+  $('dex').classList.add('show');
+}
+function closeDex() {
+  $('dex').classList.remove('show');
+  paused = false;
+}
+$('dexBtnTitle').onclick = openDex;
+$('dexBtnGame').onclick = openDex;
+$('dexClose').onclick = closeDex;
+$('dex').addEventListener('click', e => { if (e.target.id === 'dex') closeDex(); });
+addEventListener('keydown', e => { if (e.key === 'Escape' && $('dex').classList.contains('show')) closeDex(); });
 
 // ---------------- 画面切り替え ----------------
 function show(id) {
@@ -1407,7 +1522,7 @@ function easeOutBack(x) { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.
 
 // ---------------- 更新 ----------------
 function update(dt) {
-  if (state === 'play') {
+  if (state === 'play' && !paused) {
     gt += dt;
     // キーボード移動
     if (keys.ArrowLeft) holdX -= 0.35 * dt;
