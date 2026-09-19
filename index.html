@@ -59,7 +59,7 @@
   .modeLabel.hard { background: #7a5cd6; }
   .diffRow button.on.baka { background: #ff7a45; border-color: #ff7a45; }
   .modeLabel.baka { background: #ff7a45; }
-  /* バカゲー：長押しでチャージ（--charge がゲージ） */
+  /* 暴走反応：長押しでチャージ（--charge がゲージ） */
   #shakeBtn.charge { --charge: 0%; background: linear-gradient(90deg, #ff7a45 var(--charge), #b9a4f0 var(--charge)); touch-action: none; -webkit-touch-callout: none; }
   #shakeBtn.charge.full { animation: wiggle .12s infinite; }
   @keyframes wiggle { 0%,100% { transform: rotate(-2deg) } 50% { transform: rotate(2deg) } }
@@ -180,13 +180,13 @@
       直鎖の <b>アセン系</b> か <b>フェナレン系</b> に分かれるよ！<br>
       続けて合体すると <b>連鎖ボーナス</b>✨<br>
       🔦 <b>ブラックライト</b>中は光る分子の得点が2倍！<br>
-      つまったら <b>ゆらす</b>（Sキー／ふつうは3回、<b>バカゲー</b>は無制限＆長押しでチャージ！）<br>
+      つまったら <b>ゆらす</b>（Sキー／ふつうは3回、<b>暴走反応</b>は無制限＆長押しでチャージ！）<br>
       <span style="color:var(--sub)">クリック / タップ で落とす ・ ←→ + スペースでもOK</span>
     </div>
     <div class="diffRow">
       <button id="diffNormal">ふつう</button>
       <button id="diffHard" class="hard">むずかしい</button>
-      <button id="diffBaka" class="baka">バカゲー</button>
+      <button id="diffBaka" class="baka">暴走反応</button>
     </div>
     <div class="diffNote" id="diffNote"></div>
     <div class="modeRow">
@@ -693,7 +693,7 @@ function bgmStep(i, t) {
     bgmNote(midi(m + 12), t, e * Math.min(len, 2) * 0.7, 'sine', 0.025);
   }
   if (diff === 'baka') {
-    // バカゲー：ピコピコ音のメロディを重ね、ベースは8分で「ズンチャ」、ハイハットは全部
+    // 暴走反応：ピコピコ音のメロディを重ね、ベースは8分で「ズンチャ」、ハイハットは全部
     if (m > 0) bgmNote(midi(m + 12), t, e * 0.8, 'square', 0.035);
     bgmNote(midi(root + (pos % 2 ? 12 : 0)), t, e * 0.9, 'triangle', 0.13);
     if (pos % 2 === 1) for (const n of ch) bgmNote(midi(n + 12), t, e * 0.5, 'square', 0.012);
@@ -705,7 +705,7 @@ function bgmStep(i, t) {
   if (pos % 4 === 2) for (const n of ch) bgmNote(midi(n), t, e * 0.8, 'sine', 0.03);
   if (pos % 2 === 1) bgmHat(t);
 }
-// バカゲーは常に速く、危険ラインに近づくとさらにテンポアップ
+// 暴走反応は常に速く、危険ラインに近づくとさらにテンポアップ
 function bgmEighth() {
   return BGM_EIGHTH / ((diff === 'baka' ? 1.6 : 1) * (state === 'play' && warn ? 1.25 : 1));
 }
@@ -762,7 +762,7 @@ document.addEventListener('visibilitychange', () => {
 // 難易度：ふつう（ゆらすあり）／むずかしい（ゆらすなし）。記録は難易度ごとに別々
 let diff = 'normal';
 try { const d = localStorage.getItem('coroneneDiff'); if (d === 'hard' || d === 'baka') diff = d; } catch (e) {}
-const DIFF_NAME = { normal: 'ふつう', hard: 'むずかしい', baka: 'バカゲー' };
+const DIFF_NAME = { normal: 'ふつう', hard: 'むずかしい', baka: '暴走反応' };
 const DIFF_NOTE = { normal: 'ゆらす 3回つき', hard: 'ゆらす なし・記録は別集計', baka: 'ゆらし無制限！長押しでパワーチャージ・BGMも爆速' };
 function sfxKey() { return diff === 'normal' ? '' : '-' + diff; }
 function loadBest() { try { return +localStorage.getItem('coroneneBest' + sfxKey()) || 0; } catch (e) { return 0; } }
@@ -864,7 +864,7 @@ let combo = 0, maxCombo = 0, lastMergeAt = -1e9;
 // ゆらす
 const SHAKES = 3;
 let shakesLeft = SHAKES, shakeAt = -1e9, graceUntil = 0, shakePower = 0;
-// バカゲー：長押しでチャージ
+// 暴走反応：長押しでチャージ
 const CHARGE_MS = 1500;
 let charging = false, chargeStart = 0, chargeMaxed = false;
 function chargePower() { return charging ? Math.min(1, (gt - chargeStart) / CHARGE_MS) : 0; }
@@ -1035,7 +1035,7 @@ function drop() {
   updateNext();
 }
 
-// power: 0〜1（バカゲーのチャージ量）。大きいほど強く跳ね上げる
+// power: 0〜1（暴走反応のチャージ量）。大きいほど強く跳ね上げる
 function shake(power = 0) {
   if (state !== 'play' || shakesLeft <= 0 || paused) return;
   shakesLeft--;
