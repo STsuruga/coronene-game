@@ -57,6 +57,12 @@
   .diffRow button.on.hard { background: #7a5cd6; border-color: #7a5cd6; }
   .diffNote { font-size: 12px; color: var(--sub); font-weight: 800; margin-bottom: 14px; }
   .modeLabel.hard { background: #7a5cd6; }
+  .diffRow button.on.baka { background: #ff7a45; border-color: #ff7a45; }
+  .modeLabel.baka { background: #ff7a45; }
+  /* バカゲー：長押しでチャージ（--charge がゲージ） */
+  #shakeBtn.charge { --charge: 0%; background: linear-gradient(90deg, #ff7a45 var(--charge), #b9a4f0 var(--charge)); touch-action: none; -webkit-touch-callout: none; }
+  #shakeBtn.charge.full { animation: wiggle .12s infinite; }
+  @keyframes wiggle { 0%,100% { transform: rotate(-2deg) } 50% { transform: rotate(2deg) } }
   button.daily { background: #6cc6a0; box-shadow: 0 5px 0 #3fa07a; font-size: 18px; padding: 12px 22px; }
   button.daily:active { box-shadow: 0 1px 0 #3fa07a; }
   .modeLabel { display: inline-block; font-size: 12px; font-weight: 800; color: #fff; background: #b9a4f0; border-radius: 999px; padding: 2px 10px; margin-bottom: 8px; }
@@ -174,12 +180,13 @@
       直鎖の <b>アセン系</b> か <b>フェナレン系</b> に分かれるよ！<br>
       続けて合体すると <b>連鎖ボーナス</b>✨<br>
       🔦 <b>ブラックライト</b>中は光る分子の得点が2倍！<br>
-      つまったら <b>ゆらす</b>（ふつうのみ・1ゲーム3回・Sキー）<br>
+      つまったら <b>ゆらす</b>（Sキー／ふつうは3回、<b>バカゲー</b>は無制限＆長押しでチャージ！）<br>
       <span style="color:var(--sub)">クリック / タップ で落とす ・ ←→ + スペースでもOK</span>
     </div>
     <div class="diffRow">
       <button id="diffNormal">ふつう</button>
       <button id="diffHard" class="hard">むずかしい</button>
+      <button id="diffBaka" class="baka">バカゲー</button>
     </div>
     <div class="diffNote" id="diffNote"></div>
     <div class="modeRow">
@@ -685,13 +692,23 @@ function bgmStep(i, t) {
     bgmNote(midi(m), t, e * len * 0.92, 'triangle', 0.11);
     bgmNote(midi(m + 12), t, e * Math.min(len, 2) * 0.7, 'sine', 0.025);
   }
+  if (diff === 'baka') {
+    // バカゲー：ピコピコ音のメロディを重ね、ベースは8分で「ズンチャ」、ハイハットは全部
+    if (m > 0) bgmNote(midi(m + 12), t, e * 0.8, 'square', 0.035);
+    bgmNote(midi(root + (pos % 2 ? 12 : 0)), t, e * 0.9, 'triangle', 0.13);
+    if (pos % 2 === 1) for (const n of ch) bgmNote(midi(n + 12), t, e * 0.5, 'square', 0.012);
+    bgmHat(t);
+    return;
+  }
   // ポルカのリズム：1・3拍目にベース、2・4拍目に和音
   if (pos % 4 === 0) bgmNote(midi(root), t, e * 1.6, 'triangle', 0.14);
   if (pos % 4 === 2) for (const n of ch) bgmNote(midi(n), t, e * 0.8, 'sine', 0.03);
   if (pos % 2 === 1) bgmHat(t);
 }
-// 危険ラインに近づくとテンポアップ
-function bgmEighth() { return BGM_EIGHTH / (state === 'play' && warn ? 1.25 : 1); }
+// バカゲーは常に速く、危険ラインに近づくとさらにテンポアップ
+function bgmEighth() {
+  return BGM_EIGHTH / ((diff === 'baka' ? 1.6 : 1) * (state === 'play' && warn ? 1.25 : 1));
+}
 function bgmSchedule() {
   while (bgm.next < actx.currentTime + 0.2) {
     bgmStep(bgm.step, bgm.next);
@@ -744,9 +761,10 @@ document.addEventListener('visibilitychange', () => {
 // ============================================================
 // 難易度：ふつう（ゆらすあり）／むずかしい（ゆらすなし）。記録は難易度ごとに別々
 let diff = 'normal';
-try { if (localStorage.getItem('coroneneDiff') === 'hard') diff = 'hard'; } catch (e) {}
-const DIFF_NAME = { normal: 'ふつう', hard: 'むずかしい' };
-function sfxKey() { return diff === 'hard' ? '-hard' : ''; }
+try { const d = localStorage.getItem('coroneneDiff'); if (d === 'hard' || d === 'baka') diff = d; } catch (e) {}
+const DIFF_NAME = { normal: 'ふつう', hard: 'むずかしい', baka: 'バカゲー' };
+const DIFF_NOTE = { normal: 'ゆらす 3回つき', hard: 'ゆらす なし・記録は別集計', baka: 'ゆらし無制限！長押しでパワーチャージ・BGMも爆速' };
+function sfxKey() { return diff === 'normal' ? '' : '-' + diff; }
 function loadBest() { try { return +localStorage.getItem('coroneneBest' + sfxKey()) || 0; } catch (e) { return 0; } }
 function saveBest(v) { try { localStorage.setItem('coroneneBest' + sfxKey(), String(v)); } catch (e) {} }
 let best = loadBest();
@@ -845,7 +863,11 @@ const COMBO_WINDOW = 1000;   // 前の合体からこの時間内なら連鎖
 let combo = 0, maxCombo = 0, lastMergeAt = -1e9;
 // ゆらす
 const SHAKES = 3;
-let shakesLeft = SHAKES, shakeAt = -1e9, graceUntil = 0;
+let shakesLeft = SHAKES, shakeAt = -1e9, graceUntil = 0, shakePower = 0;
+// バカゲー：長押しでチャージ
+const CHARGE_MS = 1500;
+let charging = false, chargeStart = 0, chargeMaxed = false;
+function chargePower() { return charging ? Math.min(1, (gt - chargeStart) / CHARGE_MS) : 0; }
 // ブラックライト
 const BL_DUR = 9000, BL_FADE = 600;
 let blStart = -1e9, blEnd = -1e9, nextBL = 0, blWasOn = false;
@@ -886,7 +908,8 @@ function resetGame() {
   combo = 0; maxCombo = 0; lastMergeAt = -1e9;
   grapheneCount = 0; paused = false;
   $('grapheneLine').hidden = true;
-  shakesLeft = diff === 'hard' ? 0 : SHAKES; shakeAt = -1e9; graceUntil = 0;
+  shakesLeft = diff === 'hard' ? 0 : diff === 'baka' ? Infinity : SHAKES;
+  shakeAt = -1e9; graceUntil = 0; shakePower = 0; charging = false;
   blStart = blEnd = -1e9; blWasOn = false;
   nextBL = 35000 + rngEvent() * 20000;
   updateShakeBtn();
@@ -1012,27 +1035,61 @@ function drop() {
   updateNext();
 }
 
-function shake() {
+// power: 0〜1（バカゲーのチャージ量）。大きいほど強く跳ね上げる
+function shake(power = 0) {
   if (state !== 'play' || shakesLeft <= 0 || paused) return;
-  shakesLeft--; shakeAt = gt; graceUntil = gt + 1800;
+  shakesLeft--;
+  const m = 1 + power * 2.2;
+  shakeAt = gt; shakePower = power;
+  graceUntil = gt + 1800 + power * 2500;
   for (const b of Composite.allBodies(world)) {
     if (!b.kind) continue;
-    Body.setVelocity(b, { x: b.velocity.x + (Math.random() - .5) * 8, y: b.velocity.y - (3 + Math.random() * 5) });
-    Body.setAngularVelocity(b, b.angularVelocity + (Math.random() - .5) * .2);
+    // 上向きの速さは壁の高さを越えない程度におさえる
+    const vy = Math.max(-22, b.velocity.y - (3 + Math.random() * 5) * m);
+    Body.setVelocity(b, { x: b.velocity.x + (Math.random() - .5) * 8 * m, y: vy });
+    Body.setAngularVelocity(b, b.angularVelocity + (Math.random() - .5) * .2 * m);
   }
   sfx.shake();
+  if (power > 0.5) tone(110, .45, 'square', .08, .45);
+  if (power >= 1) {
+    texts.push({ x: W / 2, y: H * 0.3, text: 'ゆらしパワーMAX!!', life: 1400, max: 1400, color: '#ff5a2a', size: 34 });
+    tone(80, .7, 'sawtooth', .07, .4, .05);
+  }
   updateShakeBtn();
+}
+function startCharge() {
+  if (diff !== 'baka' || state !== 'play' || paused || charging) return;
+  charging = true; chargeStart = gt; chargeMaxed = false;
+  tone(220, .12, 'triangle', .06, 1.4);
+}
+function releaseCharge() {
+  if (!charging) return;
+  const power = chargePower();
+  charging = false;
+  shake(power);
 }
 function updateShakeBtn() {
   const btn = $('shakeBtn');
-  btn.textContent = `🫧 ゆらす ×${shakesLeft}`;
+  const baka = diff === 'baka';
+  btn.classList.toggle('charge', baka);
+  btn.textContent = baka ? '🫧 ゆらす∞（長押し）' : `🫧 ゆらす ×${shakesLeft}`;
   btn.disabled = shakesLeft <= 0;
+}
+// チャージゲージの表示（毎フレーム）
+function updateChargeUI() {
+  if (diff !== 'baka') return;
+  const p = chargePower();
+  const btn = $('shakeBtn');
+  btn.style.setProperty('--charge', Math.round(p * 100) + '%');
+  btn.classList.toggle('full', p >= 1);
+  if (p >= 1 && !chargeMaxed) { chargeMaxed = true; tone(1320, .15, 'square', .05, 1.2); }
 }
 
 function clampX(x, R) { return Math.max(BOX.l + R + 1, Math.min(BOX.r - R - 1, x)); }
 
 function gameOver() {
   state = 'over';
+  charging = false;
   sfx.over();
   bgmStop();
   let isBest = false;
@@ -1107,9 +1164,12 @@ board.addEventListener('pointerup', e => { holdX = toLocalX(e.clientX); drop(); 
 addEventListener('keydown', e => {
   keys[e.key] = true;
   if (state === 'play' && (e.key === ' ' || e.key === 'Enter' || e.key === 'ArrowDown')) { e.preventDefault(); drop(); }
-  if (state === 'play' && (e.key === 's' || e.key === 'S') && !e.repeat) shake();
+  if (state === 'play' && (e.key === 's' || e.key === 'S') && !e.repeat) diff === 'baka' ? startCharge() : shake();
 });
-addEventListener('keyup', e => { keys[e.key] = false; });
+addEventListener('keyup', e => {
+  keys[e.key] = false;
+  if (e.key === 's' || e.key === 'S') releaseCharge();
+});
 
 // ---------------- SNS 共有 ----------------
 function pageUrl() { return /^https?:/.test(location.protocol) ? location.href.split('#')[0] : ''; }
@@ -1221,6 +1281,7 @@ function startGame(m) {
   $('modeLabel').textContent = DIFF_NAME[diff] + (mode === 'daily' ? ` ・ 📅 デイリー ${daily.label}` : '');
   $('modeLabel').classList.toggle('daily', mode === 'daily' && diff !== 'hard');
   $('modeLabel').classList.toggle('hard', diff === 'hard');
+  $('modeLabel').classList.toggle('baka', diff === 'baka');
   $('shakeBtn').hidden = diff === 'hard';
   $('bestLabel').textContent = mode === 'daily' ? '今日のベスト' : 'ベスト';
   updateScore(false);
@@ -1232,7 +1293,8 @@ function updateTitleInfo() {
   daily = todayJST(); dailyBest = loadDaily(daily.key); best = loadBest();
   $('diffNormal').classList.toggle('on', diff === 'normal');
   $('diffHard').classList.toggle('on', diff === 'hard');
-  $('diffNote').textContent = diff === 'hard' ? 'ゆらす なし・記録は別集計' : 'ゆらす 3回つき';
+  $('diffBaka').classList.toggle('on', diff === 'baka');
+  $('diffNote').textContent = DIFF_NOTE[diff];
   $('titleBest').textContent = best;
   $('titleDaily').textContent = dailyBest || '-';
   $('dailyDate').textContent = daily.label;
@@ -1255,12 +1317,22 @@ function setDiff(d) {
 }
 $('diffNormal').onclick = () => setDiff('normal');
 $('diffHard').onclick = () => setDiff('hard');
+$('diffBaka').onclick = () => setDiff('baka');
 $('startBtn').onclick = () => startGame('normal');
 $('dailyBtn').onclick = () => startGame('daily');
 $('retryBtn').onclick = () => startGame(mode);
 $('overTitleBtn').onclick = toTitle;
 $('toTitleBtn').onclick = toTitle;
-$('shakeBtn').onclick = shake;
+$('shakeBtn').onclick = () => { if (diff !== 'baka') shake(); };
+$('shakeBtn').addEventListener('pointerdown', e => {
+  if (diff !== 'baka') return;
+  e.preventDefault();
+  $('shakeBtn').setPointerCapture(e.pointerId);
+  startCharge();
+});
+$('shakeBtn').addEventListener('pointerup', releaseCharge);
+$('shakeBtn').addEventListener('pointercancel', releaseCharge);
+$('shakeBtn').addEventListener('contextmenu', e => e.preventDefault());
 $('muteBtn').onclick = () => { muted = !muted; savePref('coroneneSE', !muted); updateSoundBtns(); };
 $('bgmBtn').onclick = () => {
   bgm.on = !bgm.on; savePref('coroneneBGM', bgm.on); updateSoundBtns();
@@ -1277,11 +1349,30 @@ function bodyScale(b) {
 
 function drawBoard(now) {
   // ゆらし中は画面ごと横に揺らす
-  const sp = (gt - shakeAt) / 500;
-  const off = state === 'play' && sp >= 0 && sp < 1 ? Math.sin(sp * 40) * 8 * (1 - sp) : 0;
+  const sp = (gt - shakeAt) / (500 + shakePower * 500);
+  const amp = 8 * (1 + shakePower * 3);
+  const on = state === 'play' && sp >= 0 && sp < 1;
+  const off = on ? Math.sin(sp * 40) * amp * (1 - sp) : 0;
+  const offY = on ? Math.cos(sp * 33) * amp * 0.4 * shakePower * (1 - sp) : 0;
+  // チャージ中はぷるぷる震える
+  const cp = chargePower();
+  const jit = cp > 0 ? (Math.random() - .5) * cp * 5 : 0;
   ctx.save();
-  ctx.translate(off, 0);
+  ctx.translate(off + jit, offY);
   drawBoardInner(now);
+  ctx.restore();
+  if (cp > 0) drawChargeGauge(cp);
+}
+
+function drawChargeGauge(p) {
+  const x = BOX.l + 20, y = BOX.top + 16, w = BOX.r - BOX.l - 40, h = 16;
+  ctx.save();
+  ctx.fillStyle = 'rgba(255,255,255,.85)'; roundRect(ctx, x - 3, y - 3, w + 6, h + 6, 11); ctx.fill();
+  ctx.fillStyle = p >= 1 ? (Math.floor(gt / 80) % 2 ? '#ff3d2a' : '#ffb800') : '#ff7a45';
+  roundRect(ctx, x, y, Math.max(h, w * p), h, 8); ctx.fill();
+  ctx.font = `800 13px ${FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#5a3d4a';
+  ctx.fillText(p >= 1 ? 'ゆらしパワー MAX!!' : `チャージ ${Math.round(p * 100)}%`, x + w / 2, y + h / 2 + 1);
   ctx.restore();
 }
 
@@ -1541,12 +1632,13 @@ function update(dt) {
     const blOn = blActive();
     if (blOn !== blWasOn) { bgmNight(blOn); blWasOn = blOn; }
 
+    updateChargeUI();
     acc += dt;
     while (acc >= STEP) {
       // ゆらし中はビーカーを左右に揺さぶる
       const ss = gt - shakeAt;
-      if (ss >= 0 && ss < 400) {
-        const push = Math.sin(ss / 25) * 0.9;
+      if (ss >= 0 && ss < 400 * (1 + shakePower)) {
+        const push = Math.sin(ss / 25) * 0.9 * (1 + shakePower * 1.5);
         for (const b of Composite.allBodies(world))
           if (b.kind) Body.setVelocity(b, { x: b.velocity.x + push, y: b.velocity.y });
       }
